@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
   <meta charset="UTF-8">
 
@@ -13,103 +14,147 @@
   <title>عظمة</title>
 
   <link rel="stylesheet" href="styles.css">
-</head>
 
-<body>
+  <!--
+    Mobile layout override
+    لازم يكون بعد styles.css
+    عشان يغلب أي CSS قديم
+  -->
+  <style>
+    @media (max-width: 700px) {
 
-  <div class="app-shell">
+      html,
+      body {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
+      }
 
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
+      body {
+        display: block !important;
+      }
 
-      <div class="brand">
+      .app-shell {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
 
-        <div class="brand-mark">
-          ع
-        </div>
+      /* =========================
+         REMOVE OLD SIDEBAR
+      ========================= */
 
-        <div class="brand-text">
+      .sidebar,
+      aside.sidebar {
+        display: none !important;
+        position: absolute !important;
+        left: -9999px !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+      }
 
-          <div class="brand-name">
-            عَظَمَة
-          </div>
+      /* =========================
+         MAIN
+      ========================= */
 
-          <div class="brand-sub">
-            CLIP AGENCY
-          </div>
+      .main,
+      main.main {
+        display: block !important;
 
-        </div>
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
 
-      </div>
+        margin: 0 !important;
 
-      <nav class="desktop-nav">
+        padding:
+          18px
+          14px
+          100px
+          14px !important;
 
-        <button
-          class="nav-item active"
-          data-view="dashboard"
-        >
-          <span class="nav-icon">⌂</span>
-          <span>الرئيسية</span>
-        </button>
+        box-sizing: border-box !important;
+      }
 
-        <button
-          class="nav-item"
-          data-view="accounts"
-        >
-          <span class="nav-icon">◉</span>
-          <span>الحسابات</span>
-        </button>
+      /* =========================
+         TOPBAR
+      ========================= */
 
-        <button
-          class="nav-item"
-          data-view="channels"
-        >
-          <span class="nav-icon">▶</span>
-          <span>القنوات</span>
-        </button>
+      .topbar {
+        width: 100% !important;
+        min-width: 0 !important;
 
-      </nav>
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
 
-      <div class="sidebar-bottom">
+        gap: 12px !important;
+      }
 
-        <div class="offline-status">
-          <span></span>
-          Offline
-        </div>
+      .topbar-title {
+        min-width: 0 !important;
+        flex: 1 !important;
+      }
 
-        <div class="sidebar-copy">
-          عظمة • V1
-        </div>
+      .eyebrow {
+        font-size: 10px !important;
+        letter-spacing: 3px !important;
+      }
 
-      </div>
+      .topbar h1,
+      #pageTitle {
+        font-size: 27px !important;
+        line-height: 1.15 !important;
+        margin: 4px 0 0 !important;
+      }
 
-    </aside>
+      .quick-add {
+        flex-shrink: 0 !important;
 
+        width: 45px !important;
+        min-width: 45px !important;
+        max-width: 45px !important;
 
-    <!-- MAIN -->
-    <main class="main">
+        height: 45px !important;
+        min-height: 45px !important;
 
-      <!-- TOP BAR -->
-      <header class="topbar">
+        padding: 0 !important;
 
-        <div class="topbar-title">
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
 
-          <div class="eyebrow">
-            CLIP AGENCY
-          </div>
+        border-radius: 14px !important;
+      }
 
-          <h1 id="pageTitle">
-            لوحة التحكم
-          </h1>
+      .quick-add span:first-child {
+        display: block !important;
+        font-size: 27px !important;
+        line-height: 1 !important;
+      }
 
-        </div>
+      .quick-add span:last-child {
+        display: none !important;
+      }
 
-        <button
-          class="quick-add"
-          id="quickAdd"
-        >
-          <span>+</span>
-          <span>حساب جديد</span>
+      /* =========================
+         VIEWS
+      ========================= */
+
+      .view {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+                 <span>حساب جديد</span>
         </button>
 
       </header>
