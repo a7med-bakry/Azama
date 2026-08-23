@@ -1,339 +1,49 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
-
-  <meta name="theme-color" content="#08090c">
-
-  <title>عظمة</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0d">
+  <title>عظمة — Clip Agency Manager</title>
   <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">ع</div>
+        <div>
+          <div class="brand-name">عَظَمَة</div>
+          <div class="brand-sub">Clip Agency Manager</div>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard">⌂ <span>الرئيسية</span></button>
+        <button class="nav-item" data-view="accounts">▣ <span>الحسابات</span></button>
+        <button class="nav-item" data-view="channels">▶ <span>القنوات</span></button>
+      </nav>
+      <div class="sidebar-foot">Offline • Local Data</div>
+    </aside>
 
-  <!--
-    Mobile layout override
-    لازم يكون بعد styles.css
-    عشان يغلب أي CSS قديم
-  -->
-  <style>
-    @media (max-width: 700px) {
-
-      html,
-      body {
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow-x: hidden !important;
-      }
-
-      body {
-        display: block !important;
-      }
-
-      .app-shell {
-        display: block !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-
-      /* =========================
-         REMOVE OLD SIDEBAR
-      ========================= */
-
-      .sidebar,
-      aside.sidebar {
-        display: none !important;
-        position: absolute !important;
-        left: -9999px !important;
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-      }
-
-      /* =========================
-         MAIN
-      ========================= */
-
-      .main,
-      main.main {
-        display: block !important;
-
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-
-        margin: 0 !important;
-
-        padding:
-          18px
-          14px
-          100px
-          14px !important;
-
-        box-sizing: border-box !important;
-      }
-
-      /* =========================
-         TOPBAR
-      ========================= */
-
-      .topbar {
-        width: 100% !important;
-        min-width: 0 !important;
-
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-
-        gap: 12px !important;
-      }
-
-      .topbar-title {
-        min-width: 0 !important;
-        flex: 1 !important;
-      }
-
-      .eyebrow {
-        font-size: 10px !important;
-        letter-spacing: 3px !important;
-      }
-
-      .topbar h1,
-      #pageTitle {
-        font-size: 27px !important;
-        line-height: 1.15 !important;
-        margin: 4px 0 0 !important;
-      }
-
-      .quick-add {
-        flex-shrink: 0 !important;
-
-        width: 45px !important;
-        min-width: 45px !important;
-        max-width: 45px !important;
-
-        height: 45px !important;
-        min-height: 45px !important;
-
-        padding: 0 !important;
-
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-
-        border-radius: 14px !important;
-      }
-
-      .quick-add span:first-child {
-        display: block !important;
-        font-size: 27px !important;
-        line-height: 1 !important;
-      }
-
-      .quick-add span:last-child {
-        display: none !important;
-      }
-
-      /* =========================
-         VIEWS
-      ========================= */
-
-      .view {
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-                 <span>حساب جديد</span>
-        </button>
-
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">CLIP AGENCY</div>
+          <h1 id="pageTitle">لوحة التحكم</h1>
+        </div>
+        <button class="primary" id="quickAdd">+ إضافة حساب</button>
       </header>
 
-
-      <!-- DASHBOARD -->
-      <section
-        id="dashboardView"
-        class="view active"
-      ></section>
-
-
-      <!-- ACCOUNTS -->
-      <section
-        id="accountsView"
-        class="view"
-      ></section>
-
-
-      <!-- CHANNELS -->
-      <section
-        id="channelsView"
-        class="view"
-      ></section>
-
+      <section id="dashboardView" class="view active"></section>
+      <section id="accountsView" class="view"></section>
+      <section id="channelsView" class="view"></section>
     </main>
-
-
-    <!-- MOBILE NAV -->
-    <nav class="mobile-nav">
-
-      <button
-        class="mobile-nav-item active"
-        data-view="dashboard"
-      >
-        <span>⌂</span>
-        <small>الرئيسية</small>
-      </button>
-
-      <button
-        class="mobile-nav-item"
-        data-view="accounts"
-      >
-        <span>◉</span>
-        <small>الحسابات</small>
-      </button>
-
-      <button
-        class="mobile-add"
-        id="mobileAdd"
-      >
-        +
-      </button>
-
-      <button
-        class="mobile-nav-item"
-        data-view="channels"
-      >
-        <span>▶</span>
-        <small>القنوات</small>
-      </button>
-
-      <button
-        class="mobile-nav-item"
-        id="mobileMore"
-      >
-        <span>•••</span>
-        <small>المزيد</small>
-      </button>
-
-    </nav>
-
   </div>
 
-
-  <!-- MODAL -->
-  <div
-    class="modal-backdrop"
-    id="modalBackdrop"
-  >
-
-    <div
-      class="modal"
-      id="modal"
-    ></div>
-
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="modal"></div>
   </div>
-
-
-  <!-- TOAST -->
-  <div
-    class="toast"
-    id="toast"
-  ></div>
-
-
+  <div class="toast" id="toast"></div>
   <script src="app.js"></script>
-
-  <script>
-
-    /*
-      Mobile navigation
-    */
-
-    document
-      .querySelectorAll(".mobile-nav-item")
-      .forEach(button => {
-
-        button.addEventListener("click", () => {
-
-          const view = button.dataset.view;
-
-          if (!view) return;
-
-          document
-            .querySelectorAll(".mobile-nav-item")
-            .forEach(item => {
-              item.classList.remove("active");
-            });
-
-          button.classList.add("active");
-
-          state.view = view;
-          state.accountId = null;
-          state.channelId = null;
-
-          render();
-
-        });
-
-      });
-
-
-    /*
-      Mobile add button
-    */
-
-    const mobileAdd =
-      document.getElementById("mobileAdd");
-
-    if (mobileAdd) {
-
-      mobileAdd.addEventListener(
-        "click",
-        () => {
-
-          openAccountModal();
-
-        }
-      );
-
-    }
-
-
-    /*
-      Sync desktop navigation
-      with mobile navigation
-    */
-
-    const originalRender = window.render;
-
-    window.render = function () {
-
-      originalRender();
-
-      document
-        .querySelectorAll(".mobile-nav-item")
-        .forEach(item => {
-
-          item.classList.toggle(
-            "active",
-            item.dataset.view === state.view
-          );
-
-        });
-
-    };
-
-  </script>
-
 </body>
 </html>
