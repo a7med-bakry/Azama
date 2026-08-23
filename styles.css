@@ -1432,3 +1432,163 @@ h1 {
   }
 
   }
+/* =========================================
+   AZAMA MOBILE FIX
+   ========================================= */
+
+@media screen and (max-width: 700px) {
+
+  html,
+  body {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .app-shell {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* إخفاء الـ Sidebar القديم نهائياً */
+  .sidebar,
+  aside.sidebar {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+  }
+
+  /* الـ Main ياخد الشاشة كلها */
+  .main,
+  main.main {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 16px 14px 100px !important;
+  }
+
+  /* منع أي Grid قديم من توسيع الصفحة */
+  .stats {
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .grid {
+    width: 100% !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  /* الهيدر */
+  .topbar {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .topbar-title {
+    min-width: 0 !important;
+  }
+
+  h1 {
+    font-size: 25px !important;
+  }
+
+  /* زر حساب جديد */
+  .quick-add {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .quick-add span:last-child {
+    display: none !important;
+  }
+
+  /* إخفاء أي Navigation قديمة */
+  .desktop-nav,
+  .nav-item {
+    display: none !important;
+  }
+
+  /* الـ Navigation الجديدة */
+  .mobile-nav {
+    position: fixed !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      1fr 1fr 1fr 1fr 1fr !important;
+
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+
+    width: auto !important;
+    height: 65px !important;
+
+    margin: 0 !important;
+    padding: 6px !important;
+
+    border-radius: 21px !important;
+
+    z-index: 9999 !important;
+  }
+
+  .mobile-nav-item {
+    display: flex !important;
+    width: 100% !important;
+    height: 53px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    flex-direction: column !important;
+  }
+
+  .mobile-add {
+    display: grid !important;
+    place-items: center !important;
+
+    width: 47px !important;
+    height: 47px !important;
+
+    margin: auto !important;
+  }
+
+  /* منع الـCards من الخروج برا الشاشة */
+  .card,
+  .stat,
+  .account-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* الأرقام */
+  .stat-value {
+    font-size: 21px !important;
+  }
+
+  /* الجدول يسمح بالسحب أفقياً */
+  .table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+
+  /* المودال */
+  .modal-backdrop {
+    z-index: 10000 !important;
+  }
+
+}
