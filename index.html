@@ -199,4 +199,96 @@
   </div>
 
 
- 
+  <!-- TOAST -->
+  <div
+    class="toast"
+    id="toast"
+  ></div>
+
+
+  <script src="app.js"></script>
+
+  <script>
+
+    /*
+      Mobile navigation
+    */
+
+    document
+      .querySelectorAll(".mobile-nav-item")
+      .forEach(button => {
+
+        button.addEventListener("click", () => {
+
+          const view = button.dataset.view;
+
+          if (!view) return;
+
+          document
+            .querySelectorAll(".mobile-nav-item")
+            .forEach(item => {
+              item.classList.remove("active");
+            });
+
+          button.classList.add("active");
+
+          state.view = view;
+          state.accountId = null;
+          state.channelId = null;
+
+          render();
+
+        });
+
+      });
+
+
+    /*
+      Mobile add button
+    */
+
+    const mobileAdd =
+      document.getElementById("mobileAdd");
+
+    if (mobileAdd) {
+
+      mobileAdd.addEventListener(
+        "click",
+        () => {
+
+          openAccountModal();
+
+        }
+      );
+
+    }
+
+
+    /*
+      Sync desktop navigation
+      with mobile navigation
+    */
+
+    const originalRender = window.render;
+
+    window.render = function () {
+
+      originalRender();
+
+      document
+        .querySelectorAll(".mobile-nav-item")
+        .forEach(item => {
+
+          item.classList.toggle(
+            "active",
+            item.dataset.view === state.view
+          );
+
+        });
+
+    };
+
+  </script>
+
+</body>
+</html>
