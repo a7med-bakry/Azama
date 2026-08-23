@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0d">
+  <title>عظمة — Clip Agency Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">ع</div>
+        <div>
+          <div class="brand-name">عَظَمَة</div>
+          <div class="brand-sub">Clip Agency Manager</div>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard">⌂ <span>الرئيسية</span></button>
+        <button class="nav-item" data-view="accounts">▣ <span>الحسابات</span></button>
+        <button class="nav-item" data-view="channels">▶ <span>القنوات</span></button>
+      </nav>
+      <div class="sidebar-foot">Offline • Local Data</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">CLIP AGENCY</div>
+          <h1 id="pageTitle">لوحة التحكم</h1>
+        </div>
+        <button class="primary" id="quickAdd">+ إضافة حساب</button>
+      </header>
+
+      <section id="dashboardView" class="view active"></section>
+      <section id="accountsView" class="view"></section>
+      <section id="channelsView" class="view"></section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="modal"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
