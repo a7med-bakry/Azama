@@ -2,48 +2,201 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0a0a0d">
-  <title>عظمة — Clip Agency Manager</title>
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  >
+
+  <meta name="theme-color" content="#08090c">
+
+  <title>عظمة</title>
+
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
+
   <div class="app-shell">
+
+    <!-- SIDEBAR -->
     <aside class="sidebar">
+
       <div class="brand">
-        <div class="brand-mark">ع</div>
-        <div>
-          <div class="brand-name">عَظَمَة</div>
-          <div class="brand-sub">Clip Agency Manager</div>
+
+        <div class="brand-mark">
+          ع
         </div>
+
+        <div class="brand-text">
+
+          <div class="brand-name">
+            عَظَمَة
+          </div>
+
+          <div class="brand-sub">
+            CLIP AGENCY
+          </div>
+
+        </div>
+
       </div>
-      <nav>
-        <button class="nav-item active" data-view="dashboard">⌂ <span>الرئيسية</span></button>
-        <button class="nav-item" data-view="accounts">▣ <span>الحسابات</span></button>
-        <button class="nav-item" data-view="channels">▶ <span>القنوات</span></button>
+
+      <nav class="desktop-nav">
+
+        <button
+          class="nav-item active"
+          data-view="dashboard"
+        >
+          <span class="nav-icon">⌂</span>
+          <span>الرئيسية</span>
+        </button>
+
+        <button
+          class="nav-item"
+          data-view="accounts"
+        >
+          <span class="nav-icon">◉</span>
+          <span>الحسابات</span>
+        </button>
+
+        <button
+          class="nav-item"
+          data-view="channels"
+        >
+          <span class="nav-icon">▶</span>
+          <span>القنوات</span>
+        </button>
+
       </nav>
-      <div class="sidebar-foot">Offline • Local Data</div>
+
+      <div class="sidebar-bottom">
+
+        <div class="offline-status">
+          <span></span>
+          Offline
+        </div>
+
+        <div class="sidebar-copy">
+          عظمة • V1
+        </div>
+
+      </div>
+
     </aside>
 
+
+    <!-- MAIN -->
     <main class="main">
+
+      <!-- TOP BAR -->
       <header class="topbar">
-        <div>
-          <div class="eyebrow">CLIP AGENCY</div>
-          <h1 id="pageTitle">لوحة التحكم</h1>
+
+        <div class="topbar-title">
+
+          <div class="eyebrow">
+            CLIP AGENCY
+          </div>
+
+          <h1 id="pageTitle">
+            لوحة التحكم
+          </h1>
+
         </div>
-        <button class="primary" id="quickAdd">+ إضافة حساب</button>
+
+        <button
+          class="quick-add"
+          id="quickAdd"
+        >
+          <span>+</span>
+          <span>حساب جديد</span>
+        </button>
+
       </header>
 
-      <section id="dashboardView" class="view active"></section>
-      <section id="accountsView" class="view"></section>
-      <section id="channelsView" class="view"></section>
+
+      <!-- DASHBOARD -->
+      <section
+        id="dashboardView"
+        class="view active"
+      ></section>
+
+
+      <!-- ACCOUNTS -->
+      <section
+        id="accountsView"
+        class="view"
+      ></section>
+
+
+      <!-- CHANNELS -->
+      <section
+        id="channelsView"
+        class="view"
+      ></section>
+
     </main>
+
+
+    <!-- MOBILE NAV -->
+    <nav class="mobile-nav">
+
+      <button
+        class="mobile-nav-item active"
+        data-view="dashboard"
+      >
+        <span>⌂</span>
+        <small>الرئيسية</small>
+      </button>
+
+      <button
+        class="mobile-nav-item"
+        data-view="accounts"
+      >
+        <span>◉</span>
+        <small>الحسابات</small>
+      </button>
+
+      <button
+        class="mobile-add"
+        id="mobileAdd"
+      >
+        +
+      </button>
+
+      <button
+        class="mobile-nav-item"
+        data-view="channels"
+      >
+        <span>▶</span>
+        <small>القنوات</small>
+      </button>
+
+      <button
+        class="mobile-nav-item"
+        id="mobileMore"
+      >
+        <span>•••</span>
+        <small>المزيد</small>
+      </button>
+
+    </nav>
+
   </div>
 
-  <div class="modal-backdrop" id="modalBackdrop">
-    <div class="modal" id="modal"></div>
+
+  <!-- MODAL -->
+  <div
+    class="modal-backdrop"
+    id="modalBackdrop"
+  >
+
+    <div
+      class="modal"
+      id="modal"
+    ></div>
+
   </div>
-  <div class="toast" id="toast"></div>
-  <script src="app.js"></script>
-</body>
-</html>
+
+
+ 
