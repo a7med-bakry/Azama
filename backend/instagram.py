@@ -3,6 +3,10 @@ from instagrapi import Client
 from instagrapi.exceptions import TwoFactorRequired
 
 
+class VerificationRequired(RuntimeError):
+    """Verification that must be completed in the official Instagram app."""
+
+
 def make_client():
     logger = logging.getLogger('instaflow.instagram')
     logger.disabled = True
@@ -13,7 +17,7 @@ def make_client():
     client.private_request_logger = logger
     client.public_request_logger = logger
     def unsupported_verification(*args):
-        raise RuntimeError('Complete verification in the Instagram app')
+        raise VerificationRequired('Complete verification in the Instagram app')
     client.change_password_handler = unsupported_verification
     return client
 

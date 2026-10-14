@@ -9,6 +9,8 @@ from cryptography.fernet import Fernet
 from backend.config import Settings
 from backend.main import create_app
 from backend.instagram import TwoFactorRequired, make_client
+from backend.instagram import VerificationRequired
+from instagrapi import exceptions as instagram_errors
 from instagrapi.mixins.challenge import ChallengeChoice
 from backend.storage import SQLiteStore, SupabaseStore, StorageError
 
@@ -160,6 +162,67 @@ def test_login_failure_timeout_and_duplicate(tmp_path):
         app.state.attempts[attempt['id']].expires = time.monotonic() - 1
         assert client.post('/api/logins/' + attempt['id'] + '/code', headers=HEADERS, json={'code':'123456','challenge_id':challenge['challenge_id']}).status_code == 409
         assert client.get('/api/accounts', headers=HEADERS).json() == []
+
+
+@pytest.mark.parametrize('error_type, code', [
+    (instagram_errors.BadPassword, 'credentials'),
+    (instagram_errors.BadCredentials, 'credentials'),
+    (instagram_errors.SentryBlock, 'access_denied'),
+    (instagram_errors.ClientForbiddenError, 'access_denied'),
+    (instagram_errors.PleaseWaitFewMinutes, 'rate_limited'),
+    (instagram_errors.FeedbackRequired, 'rate_limited'),
+    (instagram_errors.ChallengeSelfieCaptcha, 'verification'),
+    (VerificationRequired, 'verification'),
+    (instagram_errors.ClientConnectionError, 'connection'),
+    (instagram_errors.ClientJSONDecodeError, 'instagram_response'),
+    (KeyError, 'instagram_response'),
+    (RuntimeError, 'unexpected'),
+])
+def test_login_failure_diagnostics_do_not_leak_provider_details(tmp_path, caplog, error_type, code):
+    private_detail = 'secret-password synthetic-private-provider-response 123456'
+    class FailingClient(FakeClient):
+        def login(self, *args, **kwargs):
+            raise error_type(private_detail)
+    with running(tmp_path, factory=FailingClient) as (client, app, settings):
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        failed = wait_login(client, attempt['id'], ['failed'])
+        assert failed['failure_code'] == code
+        assert 'code=' + code in caplog.text
+        assert 'stage=instagram_login' in caplog.text
+        assert 'exception=' + error_type.__name__ in caplog.text
+        assert 'attempt=' + attempt['id'] in caplog.text
+        for secret in ('secret-password', 'synthetic-private-provider-response', '123456'):
+            assert secret not in json.dumps(failed) + caplog.text
+        assert client.get('/api/accounts', headers=HEADERS).json() == []
+        # Failed attempts release their locks; a new attempt is accepted.
+        assert client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'p'}).status_code == 202
+
+
+def test_session_save_failure_is_not_reported_as_bad_credentials(tmp_path, monkeypatch, caplog):
+    with running(tmp_path) as (client, app, settings):
+        def unavailable(*args):
+            raise StorageError('synthetic-service-key secret-password')
+        monkeypatch.setattr(app.state.store, 'put', unavailable)
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        failed = wait_login(client, attempt['id'], ['failed'])
+        assert failed['failure_code'] == 'storage'
+        assert 'Supabase' in failed['message']
+        assert 'stage=session_save' in caplog.text
+        assert 'synthetic-service-key' not in caplog.text + json.dumps(failed)
+        assert 'secret-password' not in caplog.text + json.dumps(failed)
+
+
+def test_unreadable_saved_session_identifies_encryption_key_failure(tmp_path, caplog):
+    with running(tmp_path) as (client, app, settings):
+        account_id = add_account(client)
+        stored = app.state.store.get('account', account_id)
+        stored['session'] = Fernet(Fernet.generate_key()).encrypt(b'{}').decode()
+        app.state.store.put('account', stored)
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        failed = wait_login(client, attempt['id'], ['failed'])
+        assert failed['failure_code'] == 'session_key'
+        assert 'stage=session_restore' in caplog.text
+        assert 'secret-password' not in caplog.text + json.dumps(failed)
 
 
 @pytest.mark.parametrize('url', ['http://www.instagram.com/p/ABC/', 'https://evil.test/p/ABC/', 'https://www.instagram.com.evil.test/p/ABC/', 'https://www.instagram.com:443/p/ABC/', 'https://www.instagram.com/stories/name/123/', 'https://www.instagram.com/p/../ABC/'])

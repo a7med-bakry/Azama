@@ -5,7 +5,33 @@ import uuid
 from datetime import datetime, timezone
 import json
 import hashlib
-from .instagram import TwoFactorRequired
+import logging
+from cryptography.fernet import InvalidToken
+from instagrapi import exceptions as instagram_errors
+from .instagram import TwoFactorRequired, VerificationRequired
+from .storage import StorageError
+
+
+logger = logging.getLogger(__name__)
+
+
+def login_failure(error, stage):
+    """Use fixed messages: provider exceptions may contain credentials and challenges."""
+    failures = (
+        ((StorageError,), 'storage', 'تعذر قراءة أو حفظ السيشن في قاعدة البيانات؛ راجع اتصال Supabase وصلاحيات الجدول.'),
+        ((InvalidToken,), 'session_key', 'تعذر فك تشفير السيشن المحفوظة؛ راجع أن مفتاح التشفير الأصلي لم يتغير.'),
+        ((instagram_errors.BadPassword, instagram_errors.BadCredentials), 'credentials', 'إنستجرام رفض بيانات الدخول. تأكد من اسم المستخدم وكلمة المرور في تطبيق إنستجرام.'),
+        ((instagram_errors.SentryBlock, instagram_errors.ProxyAddressIsBlocked, instagram_errors.ClientForbiddenError), 'access_denied', 'إنستجرام رفض طلب الدخول من السيرفر. نجاح الدخول من الموبايل لا يثبت قبول اتصال السيرفر.'),
+        ((instagram_errors.PleaseWaitFewMinutes, instagram_errors.RateLimitError, instagram_errors.ClientThrottledError, instagram_errors.FeedbackRequired), 'rate_limited', 'إنستجرام قيّد المحاولة مؤقتًا. أوقف تكرار المحاولات وراجع الحساب في التطبيق.'),
+        ((VerificationRequired, instagram_errors.ChallengeError, instagram_errors.CaptchaChallengeRequired, instagram_errors.TwoFactorRequired, instagram_errors.ResetPasswordError), 'verification', 'إنستجرام طلب تحققًا لا يمكن إكماله هنا. افتح تطبيق إنستجرام وأكمل التحقق الظاهر فيه.'),
+        ((instagram_errors.ClientConnectionError, instagram_errors.ClientRequestTimeout, instagram_errors.ClientIncompleteReadError), 'connection', 'تعذر اتصال السيرفر بإنستجرام أو انتهت مهلة الاتصال. حاول لاحقًا.'),
+    )
+    for types, code, message in failures:
+        if isinstance(error, types):
+            return code, message
+    if stage in ('instagram_login', 'two_factor') and isinstance(error, (KeyError, instagram_errors.ClientJSONDecodeError)):
+        return 'instagram_response', 'السيرفر لم يتمكن من قراءة رد إنستجرام؛ قد تكون المشكلة في توافق مكتبة تسجيل الدخول. راجع سجل السيرفر.'
+    return 'unexpected', 'حدث خطأ تقني أثناء تسجيل الدخول؛ راجع سجل السيرفر لتحديد السبب.'
 
 
 def now():
@@ -20,6 +46,7 @@ class LoginAttempt:
         self.message = 'جاري تسجيل الدخول'
         self.challenge = None
         self.challenge_id = None
+        self.failure_code = None
         self.codes = queue.Queue(maxsize=1)
         self.expires = time.monotonic() + timeout
         self.guard = threading.Lock()
@@ -29,12 +56,13 @@ class LoginAttempt:
     def public(self):
         with self.guard:
             return {'id': self.id, 'account_id': self.account_id, 'status': self.status, 'message': self.message,
-                    'challenge': self.challenge, 'challenge_id': self.challenge_id}
+                    'challenge': self.challenge, 'challenge_id': self.challenge_id, 'failure_code': self.failure_code}
 
-    def set_state(self, status, message, challenge=None):
+    def set_state(self, status, message, challenge=None, failure_code=None):
         with self.guard:
             self.status, self.message, self.challenge = status, message, challenge
             self.challenge_id = uuid.uuid4().hex if status == 'awaiting_code' else None
+            self.failure_code = failure_code
 
     def wait_code(self, kind):
         if self.cancelled.is_set():
@@ -76,21 +104,27 @@ def run_login(attempt, username, password, store, cipher, factory, lock, lock_pr
         return
     client = None
     canonical_lock = None
+    stage = 'client_setup'
     try:
         client = factory()
+        stage = 'session_read'
         existing = store.get('account', attempt.account_id)
         if existing and existing.get('session'):
+            stage = 'session_restore'
             client.set_settings(json.loads(cipher.decrypt(existing['session'].encode())))
         client.challenge_code_handler = lambda _username, choice: attempt.wait_code('sms' if getattr(choice, 'value', choice) == 0 else 'email')
+        stage = 'instagram_login'
         try:
             logged_in = client.login(username, password, relogin=True)
         except TwoFactorRequired:
+            stage = 'two_factor'
             logged_in = client.login(username, password, verification_code=attempt.wait_code('two_factor'))
         if not logged_in:
             raise RuntimeError('Login not confirmed')
         if attempt.cancelled.is_set() or time.monotonic() >= attempt.expires:
             raise TimeoutError()
         # Use Instagram's authenticated user id so email and username share one session/lock.
+        stage = 'account_identity'
         user_id = client.user_id
         if not user_id:
             raise RuntimeError('Instagram did not return an authenticated user id')
@@ -102,6 +136,7 @@ def run_login(attempt, username, password, store, cipher, factory, lock, lock_pr
                 raise RuntimeError('Account busy')
         with attempt.guard:
             attempt.account_id = canonical_id
+        stage = 'session_read'
         saved = store.get('account', canonical_id)
         display_name = saved['username'] if saved else username
         if '@' in display_name:
@@ -110,6 +145,7 @@ def run_login(attempt, username, password, store, cipher, factory, lock, lock_pr
             except Exception:
                 pass  # Authentication succeeded even if optional profile lookup is unavailable.
         identifiers = list(set((saved or {}).get('identifier_hashes', []) + [hashlib.sha256(username.encode()).hexdigest()[:32]]))
+        stage = 'session_save'
         session = cipher.encrypt(json.dumps(client.get_settings()).encode()).decode()
         if attempt.cancelled.is_set() or time.monotonic() >= attempt.expires:
             raise TimeoutError()
@@ -118,9 +154,12 @@ def run_login(attempt, username, password, store, cipher, factory, lock, lock_pr
         attempt.set_state('ready', 'تم تسجيل الدخول وحفظ السيشن')
     except TimeoutError:
         attempt.set_state('expired', 'انتهت مهلة تسجيل الدخول؛ ابدأ محاولة جديدة')
-    except Exception:
-        # instagrapi exceptions can include private challenge details. Do not return them.
-        attempt.set_state('failed', 'تعذر تسجيل الدخول. راجع البيانات؛ قد يحتاج الحساب تحققًا من تطبيق إنستجرام')
+    except Exception as error:
+        code, message = login_failure(error, stage)
+        # Log only the exception class and fixed diagnostic fields, never its body/traceback.
+        logger.warning('Instagram login failed: code=%s stage=%s exception=%s attempt=%s',
+                       code, stage, type(error).__name__, attempt.id)
+        attempt.set_state('failed', message, failure_code=code)
     finally:
         password = None
         if client is not None:
