@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 import hashlib
 import logging
+import requests
 from cryptography.fernet import InvalidToken
 from instagrapi import exceptions as instagram_errors
 from .instagram import TwoFactorRequired, VerificationRequired
@@ -13,6 +14,11 @@ from .storage import StorageError
 
 
 logger = logging.getLogger(__name__)
+
+
+def response_status(error):
+    status = getattr(getattr(error, 'response', None), 'status_code', None)
+    return status if type(status) is int and 100 <= status <= 599 else None
 
 
 def login_failure(error, stage):
@@ -24,11 +30,19 @@ def login_failure(error, stage):
         ((instagram_errors.SentryBlock, instagram_errors.ProxyAddressIsBlocked, instagram_errors.ClientForbiddenError), 'access_denied', 'إنستجرام رفض طلب الدخول من السيرفر. نجاح الدخول من الموبايل لا يثبت قبول اتصال السيرفر.'),
         ((instagram_errors.PleaseWaitFewMinutes, instagram_errors.RateLimitError, instagram_errors.ClientThrottledError, instagram_errors.FeedbackRequired), 'rate_limited', 'إنستجرام قيّد المحاولة مؤقتًا. أوقف تكرار المحاولات وراجع الحساب في التطبيق.'),
         ((VerificationRequired, instagram_errors.ChallengeError, instagram_errors.CaptchaChallengeRequired, instagram_errors.TwoFactorRequired, instagram_errors.ResetPasswordError), 'verification', 'إنستجرام طلب تحققًا لا يمكن إكماله هنا. افتح تطبيق إنستجرام وأكمل التحقق الظاهر فيه.'),
-        ((instagram_errors.ClientConnectionError, instagram_errors.ClientRequestTimeout, instagram_errors.ClientIncompleteReadError), 'connection', 'تعذر اتصال السيرفر بإنستجرام أو انتهت مهلة الاتصال. حاول لاحقًا.'),
+        ((instagram_errors.ClientConnectionError, instagram_errors.ClientRequestTimeout, instagram_errors.ClientIncompleteReadError, requests.ConnectionError, requests.Timeout, requests.exceptions.RetryError), 'connection', 'تعذر إكمال طلب الاتصال بإنستجرام من السيرفر. راجع السجل وحاول لاحقًا.'),
     )
     for types, code, message in failures:
         if isinstance(error, types):
             return code, message
+    if isinstance(error, (instagram_errors.ClientError, requests.HTTPError)):
+        status = response_status(error)
+        if status == 429:
+            return 'rate_limited', 'إنستجرام قيّد المحاولة مؤقتًا. أوقف تكرار المحاولات وراجع الحساب في التطبيق.'
+        if status == 403:
+            return 'access_denied', 'إنستجرام رفض طلب الاتصال من السيرفر.'
+        if status is not None and status >= 500:
+            return 'provider_unavailable', 'طلب السيرفر رجع بخطأ من خدمة إنستجرام. حاول لاحقًا؛ الرسالة لا تعني أن كلمة المرور غير صحيحة.'
     if stage in ('instagram_login', 'two_factor') and isinstance(error, (KeyError, instagram_errors.ClientJSONDecodeError)):
         return 'instagram_response', 'السيرفر لم يتمكن من قراءة رد إنستجرام؛ قد تكون المشكلة في توافق مكتبة تسجيل الدخول. راجع سجل السيرفر.'
     return 'unexpected', 'حدث خطأ تقني أثناء تسجيل الدخول؛ راجع سجل السيرفر لتحديد السبب.'
@@ -157,8 +171,8 @@ def run_login(attempt, username, password, store, cipher, factory, lock, lock_pr
     except Exception as error:
         code, message = login_failure(error, stage)
         # Log only the exception class and fixed diagnostic fields, never its body/traceback.
-        logger.warning('Instagram login failed: code=%s stage=%s exception=%s attempt=%s',
-                       code, stage, type(error).__name__, attempt.id)
+        logger.warning('Instagram login failed: code=%s stage=%s exception=%s http_status=%s attempt=%s',
+                       code, stage, type(error).__name__, response_status(error), attempt.id)
         attempt.set_state('failed', message, failure_code=code)
     finally:
         password = None
