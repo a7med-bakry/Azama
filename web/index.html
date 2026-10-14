@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10111c"><title>InstaFlow — إدارة حسابات إنستجرام</title>
+  <link rel="stylesheet" href="./assets/styles.css"><script src="./assets/app.js" defer></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="./"><span class="brand-icon">◎</span><span>Insta<span class="accent">Flow</span><small>مساحة إدارة إنستجرام</small></span></a>
+    <div class="nav-label">مساحة العمل</div>
+    <nav aria-label="التنقل الرئيسي">
+      <button class="nav active" data-view="overview"><span>◫</span> نظرة عامة</button>
+      <button class="nav" data-view="accounts"><span>◎</span> الحسابات <b id="nav-count">0</b></button>
+      <button class="nav" data-view="jobs"><span>≋</span> الطلبات</button>
+    </nav>
+    <div class="side-bottom"><div class="server-card"><span class="dot" id="server-dot"></span><div><strong id="server-label">السيرفر غير متصل</strong><small>Python · Instagrapi</small></div></div><button class="text-button" id="connection-button">⚙ إعداد الاتصال</button><small class="version">InstaFlow / النسخة الأولى</small></div>
+  </aside>
+  <main>
+    <header><div class="breadcrumb">مساحة العمل <span>/</span> <span id="breadcrumb">نظرة عامة</span></div><div class="header-actions"><span class="workspace-badge">مساحة خاصة</span><button class="avatar" id="disconnect-button" title="قطع الاتصال" aria-label="قطع الاتصال">IF</button></div></header>
+    <div class="content">
+      <section class="page-heading"><div><div class="eyebrow">INSTAGRAM WORKSPACE</div><h1 id="page-title">كل حساباتك. في مكان واحد.</h1><p id="page-description">أضف حساباتك، نظّم الطلبات، وتابع كل عملية من البداية للنهاية.</p></div><button class="button primary" id="add-account">＋ إضافة حساب</button></section>
+      <div class="notice" id="connection-notice"><span>◉</span><div><strong>ابدأ بتوصيل سيرفرك</strong><p>أدخل عنوان سيرفر Python ومفتاح الإدارة لتظهر الحسابات والطلبات.</p></div><button class="button subtle" id="connect-notice">إعداد الاتصال ←</button></div>
+      <section class="stats" aria-label="إحصائيات الحسابات والطلبات">
+        <article class="stat"><span class="stat-icon violet">◎</span><p>الحسابات المتصلة</p><strong id="stat-accounts">0</strong><small>سيشن محفوظة وجاهزة</small></article>
+        <article class="stat"><span class="stat-icon blue">≋</span><p>طلبات قيد التنفيذ</p><strong id="stat-running">0</strong><small>قيد التشغيل أو الانتظار</small></article>
+        <article class="stat"><span class="stat-icon green">✓</span><p>عمليات ناجحة</p><strong id="stat-completed">0</strong><small>حسب استجابة إنستجرام</small></article>
+        <article class="stat"><span class="stat-icon amber">!</span><p>عمليات لم تتأكد</p><strong id="stat-failed">0</strong><small>تحتاج مراجعة الحساب</small></article>
+      </section>
+      <div class="main-grid" id="overview-view">
+        <section class="panel new-job-panel"><div class="panel-heading"><div><span class="eyebrow">NEW REQUEST</span><h2>خلّينا نبدأ طلب جديد</h2></div><span class="panel-icon">↗</span></div>
+          <form id="job-form">
+            <label>نوع العملية</label><div class="action-tabs"><label class="action-tab"><input type="radio" name="action" value="like" checked><span>♡ لايكات</span></label><label class="action-tab"><input type="radio" name="action" value="comment"><span>☷ تعليقات</span></label><span class="unavailable" title="مشاهدات الريلز تحتاج اختبار احتساب فعلي">▷ مشاهدات <small>قريبًا</small></span></div>
+            <label for="post-url">رابط المنشور أو الريل</label><input id="post-url" name="url" type="url" dir="ltr" placeholder="https://www.instagram.com/reel/..." required maxlength="500">
+            <div id="comment-field" hidden><label for="comment">نص التعليق</label><textarea id="comment" name="comment" rows="3" maxlength="1000" placeholder="اكتب التعليق هنا…"></textarea></div>
+            <div class="form-row"><div><label for="quantity">عدد العمليات</label><input id="quantity" name="quantity" type="number" min="1" max="100" value="1" required></div><div class="quantity-help">عملية واحدة لكل حساب تختاره.<br>العدد لا يتجاوز الحسابات المحددة.</div></div>
+            <label>الحسابات المستخدمة <span class="muted" id="selected-count">0 محدد</span></label><div id="account-picker" class="account-picker"><p class="muted">أضف حسابًا مسجلًا لتبدأ.</p></div>
+            <p class="form-note">◷ الطلب يعمل في الخلفية، ويمكنك متابعة النتائج أو إيقاف العمليات المتبقية.</p><button class="button primary full" id="submit-job" type="submit">إنشاء الطلب ←</button>
+          </form>
+        </section>
+        <div class="right-stack"><section class="panel"><div class="panel-heading"><h2>حساباتك</h2><button class="text-button" data-go="accounts">عرض الكل ←</button></div><div id="overview-accounts"></div></section><section class="tip-card"><span class="tip-icon">✧</span><h3>السيشن بتكمّل معاك</h3><p>بعد تسجيل الدخول، السيشن بتتحفظ مشفّرة على السيرفر. لو إنستجرام طلب تحقق جديد، تقدر تعيد تسجيل الحساب.</p><div class="tip-tag">تسجيل دخول · كود تحقق · حفظ سيشن</div></section></div>
+      </div>
+      <section id="accounts-view" hidden class="panel"><div class="panel-heading"><h2>كل الحسابات</h2><span class="muted">الحسابات المسجلة فقط</span></div><div id="accounts-list"></div></section>
+      <section class="panel activity-panel" id="jobs-section"><div class="panel-heading"><div><h2>آخر الطلبات</h2><p class="muted">نتائج فعلية، خطوة بخطوة.</p></div><button class="text-button" id="refresh-button">↻ تحديث</button></div><div id="jobs-list"></div></section>
+      <footer><span>InstaFlow <span class="muted">— مساحة عملك لإنستجرام</span></span><span class="muted">الاتصال بالسيرفر مطلوب لتشغيل العمليات</span></footer>
+    </div>
+  </main>
+</div>
+<dialog id="connection-dialog"><form id="connection-form"><div class="dialog-heading"><h2>توصيل السيرفر</h2><button class="close" type="button" data-close="connection-dialog" aria-label="إغلاق">×</button></div><p class="muted">مفتاح الإدارة يظل في ذاكرة هذه الصفحة؛ ستحتاج إدخاله بعد إعادة تحميلها.</p><label for="api-url">عنوان سيرفر Python</label><input id="api-url" type="url" dir="ltr" placeholder="https://api.example.com" required><label for="admin-key">مفتاح الإدارة</label><input id="admin-key" type="password" autocomplete="off" required minlength="32"><p id="connection-error" class="error" role="alert"></p><button class="button primary full" type="submit">اتصال بالسيرفر</button></form></dialog>
+<dialog id="login-dialog"><div class="dialog-heading"><h2>إضافة حساب إنستجرام</h2><button class="close" type="button" data-close="login-dialog" aria-label="إغلاق">×</button></div><form id="login-form"><p class="muted">استخدم اسم المستخدم أو إيميل الحساب. كلمة المرور تستخدم للدخول فقط ولا تتخزن في قاعدة البيانات.</p><label for="username">اسم المستخدم أو الإيميل</label><input id="username" dir="ltr" autocomplete="off" required maxlength="100" placeholder="username / email"><label for="password">كلمة المرور</label><input id="password" type="password" autocomplete="off" required maxlength="300"><button class="button primary full" type="submit">تسجيل الدخول</button></form><div id="login-progress" hidden><div class="login-status"><span class="pulse">◎</span><p id="login-message" role="status"></p></div><form id="code-form" hidden><label id="code-label" for="code">كود التحقق</label><input id="code" inputmode="numeric" pattern="[0-9]{6,8}" maxlength="8" minlength="6" autocomplete="one-time-code" dir="ltr" required><button class="button primary full" type="submit">تأكيد الكود</button></form><button id="retry-login" class="button subtle full" hidden>محاولة جديدة</button></div><p id="login-error" class="error" role="alert"></p></dialog>
+<div id="toast" class="toast" hidden role="status"></div>
+</body></html>
