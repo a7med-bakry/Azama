@@ -362,11 +362,42 @@ def test_unreadable_saved_session_identifies_encryption_key_failure(tmp_path, ca
         assert 'secret-password' not in caplog.text + json.dumps(failed)
 
 
-@pytest.mark.parametrize('url', ['http://www.instagram.com/p/ABC/', 'https://evil.test/p/ABC/', 'https://www.instagram.com.evil.test/p/ABC/', 'https://www.instagram.com:443/p/ABC/', 'https://www.instagram.com/stories/name/123/', 'https://www.instagram.com/p/../ABC/'])
+@pytest.mark.parametrize('url', ['http://www.instagram.com/p/ABC/', 'https://evil.test/p/ABC/', 'https://www.instagram.com.evil.test/p/ABC/', 'https://www.instagram.com:443/p/ABC/', 'https://www.instagram.com/stories/name/123/', 'https://www.instagram.com/p/../ABC/',
+    'https://www.instagram.com/../reel/ABC/', 'https://www.instagram.com/./reels/ABC/',
+    'https://www.instagram.com/name%2Fother/reel/ABC/', 'https://www.instagram.com/user/reel/ABC/extra/',
+    'https://www.instagram.com/share/reel/ABC/', 'https://www.instagram.com/reels/',
+    'https://www.instagram.com/username/', 'https://www.instagram.com@evil.test/user/reel/ABC/'])
 def test_job_url_validation(tmp_path, url):
     with running(tmp_path) as (client, app, settings):
         payload = job_payload('nonexistent'); payload['url'] = url
         assert client.post('/api/jobs', headers=HEADERS, json=payload).status_code == 422
+
+
+@pytest.mark.parametrize('url, expected', [
+    ('https://www.instagram.com/reel/DecUPGhqjTO/?utm_source=ig_web_copy_link&vrfl=NTc4MTIwNjQ2YQ==', 'https://www.instagram.com/reel/DecUPGhqjTO/'),
+    ('https://www.instagram.com/_clip_nation/reel/DecfFfDqW_C/', 'https://www.instagram.com/reel/DecfFfDqW_C/'),
+    ('https://www.instagram.com/reels/DecUPGhqjTO/', 'https://www.instagram.com/reel/DecUPGhqjTO/'),
+    ('https://instagram.com/User.Name/reels/ABC_-123?igsh=tracking#fragment', 'https://www.instagram.com/reel/ABC_-123/'),
+    ('https://www.instagram.com/p/PHOTO', 'https://www.instagram.com/p/PHOTO/'),
+    ('https://www.instagram.com/name/p/PHOTO/?igsh=tracking', 'https://www.instagram.com/p/PHOTO/'),
+    ('https://www.instagram.com/tv/VIDEO/', 'https://www.instagram.com/tv/VIDEO/'),
+])
+def test_instagram_url_variants_are_canonical_before_storage_and_execution(tmp_path, url, expected):
+    sent = []
+    class Capture(FakeClient):
+        def media_pk_from_url(self, value):
+            sent.append(value)
+            return super().media_pk_from_url(value)
+    with running(tmp_path, factory=Capture, worker=True) as (client, app, settings):
+        account_id = add_account(client)
+        payload = job_payload(account_id)
+        payload['url'] = url
+        response = client.post('/api/jobs', headers=HEADERS, json=payload)
+        assert response.status_code == 202
+        assert response.json()['url'] == expected
+        assert wait_job(client, response.json()['id'])['status'] == 'completed'
+        assert app.state.store.get('job', response.json()['id'])['url'] == expected
+        assert sent == [expected]
 
 
 @pytest.mark.parametrize('change, message', [

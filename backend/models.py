@@ -59,9 +59,12 @@ class JobInput(BaseModel):
         parts = urlsplit(value.strip())
         if parts.scheme != 'https' or parts.netloc not in ('instagram.com', 'www.instagram.com'):
             raise ValueError('Use an HTTPS Instagram URL')
-        if not re.fullmatch(r'/(p|reel|tv)/[A-Za-z0-9_-]+/?', parts.path):
+        match = re.fullmatch(r'/(?:(?P<username>[A-Za-z0-9_.]{1,30})/)?(?P<kind>p|reel|reels|tv)/(?P<shortcode>[A-Za-z0-9_-]+)/?', parts.path)
+        username = match.group('username') if match else None
+        if not match or (username and (not username.strip('.') or username.lower() in ('share', 'stories', 'explore', 'accounts', 'direct', 'p', 'reel', 'reels', 'tv'))):
             raise ValueError('Use a post or reel URL')
-        return 'https://www.instagram.com' + parts.path
+        kind = 'reel' if match.group('kind') == 'reels' else match.group('kind')
+        return f'https://www.instagram.com/{kind}/{match.group("shortcode")}/'
 
     @model_validator(mode='after')
     def valid_request(self):
@@ -79,7 +82,7 @@ def job_validation_message(errors):
     """Use fixed field/error messages; validation input/context can contain secrets."""
     fields = {
         'action': 'اختر لايكات أو تعليقات لنوع العملية.',
-        'url': 'أدخل رابط المنشور أو الريل مباشرة بصيغة https://www.instagram.com/p/... أو https://www.instagram.com/reel/...؛ رابط الحساب أو الستوري أو المشاركة المختصر لا يصلح هنا.',
+        'url': 'أدخل رابط المنشور أو الريل مباشرة؛ نقبل /p/ و/reel/ و/reels/ حتى لو سبقها اسم الحساب. رابط الحساب أو الستوري أو المشاركة المختصر لا يصلح هنا.',
         'account_ids': 'اختر من 1 إلى 100 حساب مسجل للعملية.',
         'quantity': 'اكتب عددًا صحيحًا من 1 إلى 100؛ عملية واحدة لكل حساب.',
         'comment': 'اكتب نص التعليق، بحد أقصى 1000 حرف.',
