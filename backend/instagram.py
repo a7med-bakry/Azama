@@ -1,6 +1,7 @@
 import logging
 from instagrapi import Client
 from instagrapi.exceptions import TwoFactorRequired, ClientJSONDecodeError
+from instagrapi.utils import dumps, generate_signature
 
 
 class VerificationRequired(RuntimeError):
@@ -17,8 +18,12 @@ class InstagramClient(Client):
         return super()._build_public_session_retry_strategy().new(total=0, raise_on_status=False)
 
     def password_publickeys(self):
-        # The upstream helper reads headers without checking for an HTTP error first.
-        response = self.public.get('https://i.instagram.com/api/v1/qe/sync/', timeout=20)
+        # Match sync_device_features: qe/sync expects a signed private POST, not GET.
+        headers = dict(self.base_headers)
+        headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
+        data = {'id': self.uuid, 'server_config_retrieval': '1'}
+        response = self.private.post('https://i.instagram.com/api/v1/qe/sync/',
+                                     data=generate_signature(dumps(data)), headers=headers, timeout=20)
         response.raise_for_status()
         try:
             key_id = int(response.headers['ig-set-password-encryption-key-id'])

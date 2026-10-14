@@ -214,7 +214,7 @@ def test_session_save_failure_is_not_reported_as_bad_credentials(tmp_path, monke
         assert 'secret-password' not in caplog.text + json.dumps(failed)
 
 
-@pytest.mark.parametrize('status, code', [(429, 'rate_limited'), (403, 'access_denied'), (503, 'provider_unavailable'), (200, 'instagram_response')])
+@pytest.mark.parametrize('status, code', [(429, 'rate_limited'), (403, 'access_denied'), (405, 'instagram_response'), (503, 'provider_unavailable'), (200, 'instagram_response')])
 def test_real_client_password_key_failure_has_safe_http_diagnostic(tmp_path, monkeypatch, caplog, status, code):
     instagram = make_client()
     response = requests.Response()
@@ -222,10 +222,12 @@ def test_real_client_password_key_failure_has_safe_http_diagnostic(tmp_path, mon
     response._content = b'synthetic-private-provider-response secret-password 123456'
     response.url = 'https://synthetic-provider.test/private-url'
     monkeypatch.setattr(instagram, 'pre_login_flow', lambda: True)
-    monkeypatch.setattr(instagram.public, 'get', lambda *args, **kwargs: response)
-    def unexpected_login_request(*args, **kwargs):
-        pytest.fail('Password key failure should stop before submitting the login request')
-    monkeypatch.setattr(instagram.private, 'post', unexpected_login_request)
+    def key_request(url, **kwargs):
+        assert url == 'https://i.instagram.com/api/v1/qe/sync/'
+        assert 'secret-password' not in kwargs['data']
+        return response
+    monkeypatch.setattr(instagram.private, 'post', key_request)
+    monkeypatch.setattr(instagram.public, 'get', lambda *args, **kwargs: pytest.fail('Obsolete GET key request'))
     with running(tmp_path, factory=lambda: instagram) as (client, app, settings):
         attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
         failed = wait_login(client, attempt['id'], ['failed'])
