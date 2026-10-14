@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const state = {api: '', token: '', accounts: [], jobs: [], attempt: null, poll: null, loginPoll: null, view: 'overview', connected: false, refreshing: false, epoch: 0};
+const state = {api: '', token: '', accounts: [], jobs: [], attempt: null, poll: null, loginPoll: null, view: 'overview', connected: false, refreshing: false, epoch: 0, loginEpoch: 0};
 const labels = {queued:'في الانتظار', running:'جاري التشغيل', completed:'مكتمل', finished_with_errors:'انتهى بأخطاء', cancelled:'ملغي', interrupted:'متوقف'};
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 5000); }
@@ -26,7 +26,7 @@ function serverStatus(connected) {
 }
 function empty(title, description, add = false) { return `<div class="empty-state"><span class="empty-icon">◎</span><strong>${esc(title)}</strong><p>${esc(description)}</p>${add ? '<button class="button subtle" data-add-account>＋ إضافة أول حساب</button>' : ''}</div>`; }
 function accountRow(account) {
-  return `<div class="account-row"><span class="account-avatar">${esc(account.username.slice(0,2).toUpperCase())}</span><div><div class="account-name">@${esc(account.username)}</div><div class="account-detail">سيشن محفوظة · ${esc(new Date(account.updated_at).toLocaleDateString('ar-EG'))}</div></div><div class="account-actions"><span class="badge">جاهز</span><button class="text-button" data-relogin="${esc(account.username)}">دخول جديد</button><button class="delete-button" data-delete="${esc(account.id)}">حذف</button></div></div>`;
+  return `<div class="account-row"><span class="account-avatar">${esc(account.username.slice(0,2).toUpperCase())}</span><div><div class="account-name">@${esc(account.username)}</div><div class="account-detail">سيشن محفوظة · ${esc(new Date(account.updated_at).toLocaleDateString('ar-EG'))}</div></div><div class="account-actions"><span class="badge">جاهز</span><button class="text-button" data-relogin="${esc(account.username)}">فحص السيشن</button><button class="delete-button" data-delete="${esc(account.id)}">حذف</button></div></div>`;
 }
 function render() {
   const selected = new Set([...document.querySelectorAll('#account-picker input:checked')].map(x => x.value));
@@ -66,11 +66,16 @@ function changeView(view) {
 }
 function openLogin(username = '') {
   if (!state.connected) { openConnection(); return; }
-  state.attempt = null; clearTimeout(state.loginPoll);
+  state.loginEpoch++; state.attempt = null; clearTimeout(state.loginPoll);
   $('login-form').reset(); $('username').value = username; $('login-form').hidden = false;
+  $('session-form').reset(); $('session-form').hidden = false;
+  $('password').required = !username;
+  $('login-form').querySelector('button[type="submit"]').disabled = false;
+  $('session-form').querySelector('button[type="submit"]').disabled = false;
   $('login-progress').hidden = true; $('code-form').hidden = true; $('login-error').textContent = ''; $('retry-login').hidden = true; $('login-dialog').showModal();
 }
 function closeLogin() {
+  state.loginEpoch++;
   clearTimeout(state.loginPoll);
   const attempt = state.attempt; state.attempt = null;
   if (attempt && !['ready','failed','expired'].includes(attempt.status)) api('/api/logins/' + attempt.id,{method:'DELETE'}).catch(() => {});
@@ -106,12 +111,41 @@ $('connection-form').addEventListener('submit', async event => {
   } catch(error) { state.token = ''; serverStatus(false); $('connection-error').textContent = error.message; }
   finally { button.disabled = false; }
 });
+function accountButtons(disabled) {
+  for (const id of ['login-form', 'session-form']) $(id).querySelector('button[type="submit"]').disabled = disabled;
+}
+async function beginAccount(path, payload, epoch, loginEpoch) {
+  if (state.epoch !== epoch || state.loginEpoch !== loginEpoch || !$('login-dialog').open) return;
+  const attempt = await api(path, {method:'POST', body:JSON.stringify(payload)});
+  if (state.epoch !== epoch || state.loginEpoch !== loginEpoch || !$('login-dialog').open) {
+    if (state.epoch === epoch) await api('/api/logins/' + attempt.id, {method:'DELETE'});
+    return;
+  }
+  $('login-form').hidden = true; $('session-form').hidden = true; $('login-progress').hidden = false; updateLogin(attempt);
+}
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault(); const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; $('login-error').textContent = '';
   const payload = {username:$('username').value.trim(),password:$('password').value};
-  try { const attempt = await api('/api/logins',{method:'POST',body:JSON.stringify(payload)}); if (!$('login-dialog').open) { await api('/api/logins/' + attempt.id,{method:'DELETE'}); return; } $('login-form').hidden = true; $('login-progress').hidden = false; updateLogin(attempt); }
-  catch(error) { $('login-error').textContent = error.message; }
-  finally { $('password').value = ''; payload.password = ''; button.disabled = false; }
+  const epoch = state.epoch, loginEpoch = state.loginEpoch; accountButtons(true);
+  try { await beginAccount('/api/logins', payload, epoch, loginEpoch); }
+  catch(error) { if (state.loginEpoch === loginEpoch) $('login-error').textContent = error.message; }
+  finally { payload.password = ''; if (state.loginEpoch === loginEpoch) { $('password').value = ''; accountButtons(false); } }
+});
+$('session-form').addEventListener('submit', async event => {
+  event.preventDefault(); $('login-error').textContent = '';
+  const epoch = state.epoch, loginEpoch = state.loginEpoch; accountButtons(true);
+  let payload;
+  try {
+    const file = $('session-file').files[0];
+    if (!file || file.size > 12288) throw new Error('اختر ملف session.json لا يتجاوز 12 كيلوبايت.');
+    let settings;
+    try { settings = JSON.parse((await file.text()).replace(/^\uFEFF/, '')); }
+    catch (_) { throw new Error('الملف ليس JSON صالحًا؛ اختر ملف السيشن المحفوظ من instagrapi.'); }
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('اختر ملف سيشن محفوظ من instagrapi.');
+    payload = {settings};
+    await beginAccount('/api/sessions', payload, epoch, loginEpoch);
+  } catch(error) { if (state.loginEpoch === loginEpoch) $('login-error').textContent = error.message; }
+  finally { if (payload) payload.settings = null; if (state.loginEpoch === loginEpoch) { $('session-file').value = ''; accountButtons(false); } }
 });
 $('code-form').addEventListener('submit',async event => {
   event.preventDefault(); const button = event.submitter || event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; clearTimeout(state.loginPoll); $('login-error').textContent = '';
@@ -131,8 +165,8 @@ $('job-form').addEventListener('submit',async event => {
   finally { button.disabled = !state.connected; }
 });
 $('job-form').addEventListener('change',() => { const comment = document.querySelector('input[name=action]:checked').value === 'comment'; $('comment-field').hidden = !comment; $('comment').required = comment; updateSelected(); });
-$('retry-login').addEventListener('click',() => { closeLogin(); $('login-form').hidden = false; $('login-progress').hidden = true; $('login-error').textContent = ''; });
-$('login-dialog').addEventListener('close',() => { closeLogin(); $('password').value = ''; $('code').value = ''; });
+$('retry-login').addEventListener('click',() => { closeLogin(); $('login-form').hidden = false; $('session-form').hidden = false; $('password').required = true; $('login-progress').hidden = true; $('login-error').textContent = ''; });
+$('login-dialog').addEventListener('close',() => { closeLogin(); $('password').value = ''; $('code').value = ''; $('session-file').value = ''; });
 $('connection-dialog').addEventListener('close',() => $('admin-key').value = '');
 $('connection-button').onclick = $('connect-notice').onclick = openConnection;
 $('add-account').onclick = () => openLogin(); $('refresh-button').onclick = () => state.token ? refresh(true) : openConnection();

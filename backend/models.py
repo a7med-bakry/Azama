@@ -1,4 +1,5 @@
 import re
+import json
 from urllib.parse import urlsplit
 from typing import Literal, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -6,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class LoginInput(BaseModel):
     username: str = Field(min_length=1, max_length=100)
-    password: str = Field(min_length=1, max_length=300)
+    password: str = Field(default='', max_length=300)
 
     @field_validator('username')
     @classmethod
@@ -14,6 +15,28 @@ class LoginInput(BaseModel):
         value = value.strip().lower()
         if not (re.fullmatch(r'[a-z0-9_.]{1,30}', value) or re.fullmatch(r'[a-z0-9_.+%-]+@[a-z0-9.-]+\.[a-z]{2,}', value)):
             raise ValueError('Use a valid Instagram username or email address')
+        return value
+
+
+class SessionInput(BaseModel):
+    settings: dict
+
+    @field_validator('settings')
+    @classmethod
+    def session_valid(cls, value):
+        if len(json.dumps(value).encode()) > 12288:
+            raise ValueError('Session file too large')
+        # Ignore runtime/retry overrides and unrelated fields from uploaded JSON.
+        allowed = ('uuids', 'mid', 'ig_u_rur', 'ig_www_claim', 'authorization_data',
+                   'cookies', 'last_login', 'device_settings', 'user_agent',
+                   'country', 'country_code', 'locale', 'timezone_offset')
+        value = {key: item for key, item in value.items() if key in allowed}
+        cookies, auth = value.get('cookies', {}), value.get('authorization_data', {})
+        if not isinstance(cookies, dict) or not isinstance(auth, dict):
+            raise ValueError('Invalid session credentials')
+        token = auth.get('sessionid') or cookies.get('sessionid')
+        if not isinstance(token, str) or not token:
+            raise ValueError('Session credentials missing')
         return value
 
 

@@ -28,7 +28,6 @@ class FakeClient:
 
     def login(self, username, password, relogin=False, verification_code=''):
         self.password = password
-        assert relogin or verification_code
         if username == 'bad':
             raise ValueError('secret-password synthetic-private-provider-response')
         if username == 'twofactor' and not verification_code:
@@ -41,16 +40,18 @@ class FakeClient:
             self.challenge_code_handler(username, ChallengeChoice.EMAIL)
             assert self.challenge_code_handler(username, ChallengeChoice.EMAIL) == '123456'
         self.user_id = username.split('@')[0]
+        self.settings['cookies']['ds_user_id'] = self.user_id
         return True
 
     def account_info(self):
-        return SimpleNamespace(username=self.user_id)
+        return SimpleNamespace(username=self.user_id, pk=self.user_id)
 
     def get_settings(self):
         return self.settings
 
     def set_settings(self, settings):
         self.settings = settings
+        self.user_id = settings.get('cookies', {}).get('ds_user_id')
 
     def media_pk_from_url(self, url):
         return url
@@ -135,7 +136,7 @@ def test_login_challenge_encryption_and_relogin(tmp_path, username):
         decoded = json.loads(Fernet(settings.encryption_key.encode()).decrypt(stored['session'].encode()))
         assert decoded['cookies']['sessionid'] == 'synthetic-session'
         assert 'secret-password' not in (tmp_path/'store.sqlite').read_bytes().decode(errors='ignore')
-        # For a saved session, login must force an actual authentication attempt.
+        # Saved sessions are verified and reused without another credential login.
         if username == 'ordinary':
             add_account(client, username)
             assert len(client.get('/api/accounts', headers=HEADERS).json()) == 1
@@ -286,6 +287,53 @@ def test_real_login_throttling_identifies_request_and_authentication(tmp_path, m
         assert client.get('/api/accounts', headers=HEADERS).json() == []
         for secret in ('secret-password', '987654321012345', 'synthetic-private-provider-response', 'synthetic-private-session'):
             assert secret not in caplog.text + json.dumps(failed)
+
+
+@pytest.mark.parametrize('error_type, message, reason', [
+    ('unsupported_login', 'Invalid Parameters', 'invalid_parameters'),
+    ('checkpoint_challenge_required', 'private message', 'checkpoint_challenge_required'),
+    ('synthetic-private-error', 'secret-password 123456 synthetic-private-response', 'unrecognized'),
+    ({'private': 'secret-password'}, {'private': '123456'}, 'unrecognized'),
+])
+def test_unknown_login_response_preserves_status_and_redacts_details(tmp_path, monkeypatch, caplog, error_type, message, reason):
+    instagram = make_client()
+    monkeypatch.setattr(instagram, 'pre_login_flow', lambda: True)
+    monkeypatch.setattr(instagram, 'password_encrypt', lambda password: 'synthetic-encrypted')
+    sent = []
+    def post(url, **kwargs):
+        sent.append(url)
+        response = requests.Response()
+        response.status_code = 400
+        response.url = url
+        response.request = requests.Request('POST', url).prepare()
+        response._content = json.dumps({'status':'fail', 'error_type':error_type, 'message':message,
+                                       'username':'synthetic-private-username', 'sessionid':'synthetic-private-session'}).encode()
+        return response
+    monkeypatch.setattr(instagram.private, 'post', post)
+    with running(tmp_path, factory=lambda: instagram) as (client, app, settings):
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        failed = wait_login(client, attempt['id'], ['failed'])
+        assert failed['failure_code'] == 'instagram_response'
+        assert 'exception=UnknownError http_status=400 request=account_login authenticated=False' in caplog.text
+        assert 'provider_reason=' + reason in caplog.text
+        assert len(sent) == 1  # No retry or feed request after rejection.
+        assert client.get('/api/accounts', headers=HEADERS).json() == []
+        for secret in ('secret-password', '123456', 'synthetic-private', 'private message', 'Invalid Parameters'):
+            assert secret not in json.dumps(failed) + caplog.text
+
+
+def test_unknown_error_does_not_use_stale_client_response(tmp_path, caplog):
+    class Failing(FakeClient):
+        last_response = SimpleNamespace(status_code=429)
+        def login(self, *args, **kwargs):
+            raise instagram_errors.UnknownError('private-provider-message')
+    with running(tmp_path, factory=Failing) as (client, app, settings):
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        failed = wait_login(client, attempt['id'], ['failed'])
+        assert failed['failure_code'] == 'instagram_response'
+        assert 'http_status=None' in caplog.text
+        assert 'provider_reason=unrecognized' in caplog.text
+        assert 'private-provider-message' not in caplog.text
 
 
 def test_login_diagnostics_reject_unrecognized_request_labels(tmp_path, caplog):

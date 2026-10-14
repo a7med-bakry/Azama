@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import secrets
 import threading
 import time
@@ -16,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import Settings
 from .storage import SQLiteStore, SupabaseStore, StorageError
 from .login import LoginAttempt, run_login, now
-from .models import LoginInput, CodeInput, JobInput
+from .models import LoginInput, SessionInput, CodeInput, JobInput
 from .instagram import make_client
 from .jobs import Worker
 
@@ -94,12 +95,8 @@ def create_app(settings=None, store=None, client_factory=make_client, start_work
     def accounts():
         return [{k: v for k, v in account.items() if k not in ('session', 'identifier_hashes')} for account in store.list('account')]
 
-    @app.post('/api/logins', dependencies=auth, status_code=202)
-    def login(data: LoginInput):
-        identifier_hash = hashlib.sha256(data.username.encode()).hexdigest()[:32]
+    def start_attempt(account_id, username='', password='', imported_settings=None):
         with state_lock:
-            existing = next((a for a in store.list('account') if identifier_hash in a.get('identifier_hashes', []) or a['username'] == data.username), None)
-            account_id = existing['id'] if existing else identifier_hash
             # Finished attempts expire; live network calls are not removed until their thread ends.
             for key, attempt in list(attempts.items()):
                 if time.monotonic() >= attempt.expires:
@@ -114,8 +111,23 @@ def create_app(settings=None, store=None, client_factory=make_client, start_work
                 raise HTTPException(429, 'انتظر قليلًا قبل بدء محاولة جديدة')
             attempt = LoginAttempt(account_id, settings.login_timeout)
             attempts[attempt.id] = attempt
-            attempt.future = executor.submit(run_login, attempt, data.username, data.password, store, cipher, client_factory, account_lock(account_id), account_lock)
+            attempt.future = executor.submit(run_login, attempt, username, password, store, cipher, client_factory, account_lock(account_id), account_lock, imported_settings)
             return attempt.public()
+
+    @app.post('/api/logins', dependencies=auth, status_code=202)
+    def login(data: LoginInput):
+        identifier_hash = hashlib.sha256(data.username.encode()).hexdigest()[:32]
+        with state_lock:
+            existing = next((a for a in store.list('account') if identifier_hash in a.get('identifier_hashes', []) or a['username'] == data.username), None)
+            if not data.password and not (existing and existing.get('session')):
+                raise HTTPException(422, 'أدخل كلمة المرور لأول تسجيل دخول، أو استخدم استيراد السيشن')
+            return start_attempt(existing['id'] if existing else identifier_hash, data.username, data.password)
+
+    @app.post('/api/sessions', dependencies=auth, status_code=202)
+    def import_session(data: SessionInput):
+        # Deduplicate concurrent uploads without exposing the session credentials.
+        account_id = hashlib.sha256(('session:' + json.dumps(data.settings, sort_keys=True)).encode()).hexdigest()[:32]
+        return start_attempt(account_id, imported_settings=data.settings)
 
     def find_attempt(attempt_id):
         with state_lock:

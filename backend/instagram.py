@@ -1,6 +1,6 @@
 import logging
 from instagrapi import Client
-from instagrapi.exceptions import TwoFactorRequired, ClientJSONDecodeError, PleaseWaitFewMinutes, ClientThrottledError
+from instagrapi.exceptions import TwoFactorRequired, ClientJSONDecodeError, PleaseWaitFewMinutes, ClientThrottledError, UnknownError
 from instagrapi.utils import dumps, generate_signature
 
 
@@ -21,12 +21,23 @@ class InstagramClient(Client):
 
     login_request = 'not_started'
 
+    def _send_private_request(self, *args, **kwargs):
+        try:
+            return super()._send_private_request(*args, **kwargs)
+        except UnknownError as error:
+            # The SDK omits response for some HTTP 400 errors. This request owns
+            # last_response; do not fall back to it at the application boundary.
+            if error.response is None:
+                error.response = self.last_response
+            raise
+
     def private_request(self, endpoint, *args, **kwargs):
         self.login_request = {
             'launcher/sync/': 'device_setup',
             'qe/sync/': 'device_setup',
             'accounts/login/': 'account_login',
             'accounts/two_factor_login/': 'two_factor',
+            'accounts/current_user/?edit=true': 'session_check',
             'feed/reels_tray/': 'post_login_feed',
             'feed/timeline/': 'post_login_feed',
         }.get(endpoint, 'other')
