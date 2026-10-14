@@ -15,6 +15,7 @@ def test_secret_generation_permissions_and_no_overwrite(tmp_path):
     original = env.read_text()
     token = original.split('ADMIN_TOKEN=')[1].splitlines()[0]
     assert len(token) >= 32 and token not in result.stdout
-    assert stat.S_IMODE(env.stat().st_mode) == 0o600
+    if sys.platform != 'win32':
+        assert stat.S_IMODE(env.stat().st_mode) == 0o600
     again = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
     assert again.returncode == 1 and env.read_text() == original

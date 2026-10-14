@@ -36,6 +36,17 @@ python3 -m venv .venv
 .venv/bin/python -m uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000 --workers 1
 ```
 
+على Windows، ثبّت Python 3.11 وافتح Command Prompt من مجلد المشروع، ثم نفّذ:
+
+```bat
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe scripts\init_env.py
+.venv\Scripts\python.exe -m uvicorn backend.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1
+```
+
+ملف المتطلبات يستبعد `uvloop` على Windows ويستخدم Uvicorn حلقة الأحداث المتاحة. للتجربة المحلية، السكربت يولّد مفاتيح جديدة ويستخدم SQLite؛ لا تنسخ مفاتيح Render أو Supabase للتجربة. ملفات `.env` تُنشأ بصلاحيات `0600` على أنظمة POSIX؛ على Windows يعتمد تقييد الوصول على صلاحيات مجلد المستخدم.
+
 افتح `http://localhost:8000`، واضغط «إعداد الاتصال»، وأدخل العنوان نفسه وقيمة `ADMIN_TOKEN` من ملف `.env` الخاص. لا تشارك هذا المفتاح: يعطي صلاحية إدارة كل الحسابات. المفتاح يبقى في ذاكرة الصفحة ويُمسح عند قطع الاتصال أو إعادة التحميل. المتصفح يحفظ عنوان السيرفر فقط.
 
 - احتفظ بـ `SESSION_ENCRYPTION_KEY` في نسخة آمنة: تغييره يجعل السيشن القديمة غير قابلة للقراءة.
