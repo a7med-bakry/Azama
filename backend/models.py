@@ -26,7 +26,7 @@ class SessionInput(BaseModel):
     @classmethod
     def session_valid(cls, value):
         if len(json.dumps(value).encode()) > 12288:
-            raise ValueError('Session file too large')
+            raise PydanticCustomError('session_too_large', 'Session file too large')
         # Ignore runtime/retry overrides and unrelated fields from uploaded JSON.
         allowed = ('uuids', 'mid', 'ig_u_rur', 'ig_www_claim', 'authorization_data',
                    'cookies', 'last_login', 'device_settings', 'user_agent',
@@ -34,11 +34,25 @@ class SessionInput(BaseModel):
         value = {key: item for key, item in value.items() if key in allowed}
         cookies, auth = value.get('cookies', {}), value.get('authorization_data', {})
         if not isinstance(cookies, dict) or not isinstance(auth, dict):
-            raise ValueError('Invalid session credentials')
+            raise PydanticCustomError('session_credentials_format', 'Invalid session credentials')
         token = auth.get('sessionid') or cookies.get('sessionid')
         if not isinstance(token, str) or not token:
-            raise ValueError('Session credentials missing')
+            raise PydanticCustomError('session_credentials_missing', 'Session credentials missing')
         return value
+
+
+def session_validation_message(errors):
+    """Describe file validation without returning its private contents."""
+    reasons = {
+        'session_too_large': 'ملف السيشن أكبر من الحد المسموح (12 كيلوبايت).',
+        'session_credentials_format': 'صيغة بيانات السيشن غير مدعومة. اختر ملف JSON ناتجًا من client.dump_settings في instagrapi.',
+        'session_credentials_missing': 'الملف لا يحتوي على بيانات جلسة تسجيل دخول. اختر ملف session.json الناتج من client.dump_settings بعد دخول ناجح.',
+    }
+    for error in errors:
+        message = reasons.get(error.get('type'))
+        if message:
+            return message
+    return 'تعذر قراءة بيانات السيشن. اختر ملف JSON ناتجًا من client.dump_settings في instagrapi؛ استيراد السيشن لا يحتاج اسم مستخدم أو كلمة مرور.'
 
 
 class CodeInput(BaseModel):

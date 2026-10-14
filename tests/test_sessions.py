@@ -145,18 +145,49 @@ def test_expired_import_does_not_fall_back_to_password(tmp_path):
         assert client.get('/api/accounts', headers=HEADERS).json() == []
 
 
-@pytest.mark.parametrize('payload', [
-    {}, {'settings':[]}, {'settings':{}}, {'settings':{'cookies':[]} },
-    {'settings':{'cookies':{'sessionid':123}}},
-    {'settings':{'cookies':{'sessionid':'synthetic'}, 'mid':'x'*13000}},
+@pytest.mark.parametrize('payload, expected', [
+    ({}, 'تعذر قراءة بيانات السيشن'),
+    ({'settings':[]}, 'تعذر قراءة بيانات السيشن'),
+    ({'settings':{}}, 'لا يحتوي على بيانات جلسة'),
+    ({'settings':{'cookies':[]}}, 'صيغة بيانات السيشن غير مدعومة'),
+    ({'settings':{'cookies':{'sessionid':123}}}, 'لا يحتوي على بيانات جلسة'),
+    ({'settings':{'cookies':{'sessionid':'synthetic'}, 'mid':'x'*13000}}, 'أكبر من الحد المسموح'),
 ])
-def test_invalid_import_is_redacted_and_never_reaches_provider(tmp_path, payload):
+def test_invalid_import_is_redacted_and_never_reaches_provider(tmp_path, payload, expected):
     def unused():
         pytest.fail('Invalid session must not create client')
     with running(tmp_path, factory=unused) as (client, app, settings):
         response = client.post('/api/sessions', headers=HEADERS, json=payload)
         assert response.status_code == 422
+        assert expected in response.json()['detail']
+        assert 'الرابط' not in response.text
+        assert 'الإيميل' not in response.text
         assert 'synthetic' not in response.text
+
+
+def test_malformed_session_json_has_own_message_without_private_content(tmp_path):
+    with running(tmp_path) as (client, app, settings):
+        response = client.post('/api/sessions', headers={**HEADERS, 'Content-Type':'application/json'}, content='{"private-session-secret":')
+        assert response.status_code == 422
+        assert 'تعذر قراءة بيانات السيشن' in response.json()['detail']
+        assert 'private-session-secret' not in response.text
+        assert 'الرابط' not in response.text
+
+
+def test_header_only_session_is_accepted_without_username_or_password(tmp_path):
+    class HeaderOnly(FakeClient):
+        def set_settings(self, settings):
+            self.settings = settings
+            self.user_id = settings['authorization_data']['ds_user_id']
+        def login(self, *args, **kwargs):
+            pytest.fail('Session import must never require credential login')
+    with running(tmp_path, factory=HeaderOnly) as (client, app, settings):
+        payload = {'settings':{'authorization_data':{'ds_user_id':'ordinary','sessionid':'synthetic-private-session'}}}
+        attempt = client.post('/api/sessions', headers=HEADERS, json=payload)
+        assert attempt.status_code == 202
+        result = wait_login(client, attempt.json()['id'], ['ready'])
+        assert result['account_id'] == saved_id()
+        assert 'synthetic-private-session' not in attempt.text + json.dumps(result)
 
 
 def test_cancelled_and_duplicate_import_cannot_save(tmp_path):

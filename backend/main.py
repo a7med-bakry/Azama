@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import Settings
 from .storage import SQLiteStore, SupabaseStore, StorageError
 from .login import LoginAttempt, run_login, now
-from .models import LoginInput, SessionInput, CodeInput, JobInput, job_validation_message
+from .models import LoginInput, SessionInput, CodeInput, JobInput, job_validation_message, session_validation_message
 from .instagram import make_client
 from .jobs import Worker
 
@@ -80,6 +80,8 @@ def create_app(settings=None, store=None, client_factory=make_client, start_work
 
     @app.exception_handler(RequestValidationError)
     async def invalid(request, exc):
+        if request.url.path == '/api/sessions':
+            return JSONResponse({'detail': session_validation_message(exc.errors())}, status_code=422)
         if request.url.path == '/api/jobs':
             return JSONResponse({'detail': job_validation_message(exc.errors())}, status_code=422)
         return JSONResponse({'detail': 'راجع الحقول المطلوبة، الرابط، والعدد. استخدم اسم المستخدم أو الإيميل الصحيح.'}, status_code=422)
