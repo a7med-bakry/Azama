@@ -3,6 +3,7 @@ import json
 from urllib.parse import urlsplit
 from typing import Literal, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 
 class LoginInput(BaseModel):
@@ -65,10 +66,34 @@ class JobInput(BaseModel):
     @model_validator(mode='after')
     def valid_request(self):
         if len(set(self.account_ids)) != len(self.account_ids):
-            raise ValueError('Duplicate accounts')
+            raise PydanticCustomError('duplicate_accounts', 'Duplicate accounts')
         if self.quantity > len(self.account_ids):
-            raise ValueError('Quantity must not exceed the number of selected accounts')
+            raise PydanticCustomError('quantity_exceeds_accounts', 'Quantity must not exceed the number of selected accounts')
         if self.action == 'comment' and not self.comment.strip():
-            raise ValueError('A comment is required')
+            raise PydanticCustomError('comment_required', 'A comment is required')
         self.comment = self.comment.strip()
         return self
+
+
+def job_validation_message(errors):
+    """Use fixed field/error messages; validation input/context can contain secrets."""
+    fields = {
+        'action': 'اختر لايكات أو تعليقات لنوع العملية.',
+        'url': 'أدخل رابط المنشور أو الريل مباشرة بصيغة https://www.instagram.com/p/... أو https://www.instagram.com/reel/...؛ رابط الحساب أو الستوري أو المشاركة المختصر لا يصلح هنا.',
+        'account_ids': 'اختر من 1 إلى 100 حساب مسجل للعملية.',
+        'quantity': 'اكتب عددًا صحيحًا من 1 إلى 100؛ عملية واحدة لكل حساب.',
+        'comment': 'اكتب نص التعليق، بحد أقصى 1000 حرف.',
+    }
+    rules = {
+        'duplicate_accounts': 'كل حساب يُختار مرة واحدة فقط في الطلب.',
+        'quantity_exceeds_accounts': 'عدد العمليات أكبر من الحسابات المحددة؛ لحساب واحد استخدم العدد 1.',
+        'comment_required': 'اكتب نص التعليق قبل إنشاء طلب التعليقات.',
+    }
+    messages = []
+    for error in errors:
+        location = error.get('loc', ())
+        field = location[1] if len(location) > 1 and location[0] == 'body' else None
+        message = fields.get(field) or rules.get(error.get('type'))
+        if message and message not in messages:
+            messages.append(message)
+    return ' '.join(messages) or 'بيانات الطلب غير صالحة؛ راجع نوع العملية والرابط والعدد والحسابات المحددة.'

@@ -369,6 +369,45 @@ def test_job_url_validation(tmp_path, url):
         assert client.post('/api/jobs', headers=HEADERS, json=payload).status_code == 422
 
 
+@pytest.mark.parametrize('change, message', [
+    ({'url':'https://www.instagram.com/share/reel/SECRET/'}, 'أدخل رابط المنشور'),
+    ({'url':'https://evil.test/private-secret'}, 'أدخل رابط المنشور'),
+    ({'quantity':2}, 'عدد العمليات أكبر'),
+    ({'quantity':0}, 'اكتب عددًا صحيحًا'),
+    ({'quantity':1.5}, 'اكتب عددًا صحيحًا'),
+    ({'account_ids':[]}, 'اختر من 1 إلى 100'),
+    ({'account_ids':['synthetic-account','synthetic-account']}, 'كل حساب'),
+    ({'action':'comment', 'comment':'   '}, 'اكتب نص التعليق قبل'),
+    ({'comment':'private-secret'*100}, 'بحد أقصى 1000'),
+    ({'action':'view'}, 'اختر لايكات أو تعليقات'),
+])
+def test_job_validation_explains_rejected_field_without_leaking_input(tmp_path, change, message):
+    with running(tmp_path) as (client, app, settings):
+        payload = job_payload('synthetic-account')
+        payload.update(change)
+        response = client.post('/api/jobs', headers=HEADERS, json=payload)
+        assert response.status_code == 422
+        assert message in response.json()['detail']
+        assert 'الإيميل' not in response.text
+        assert 'private-secret' not in response.text
+        assert 'SECRET' not in response.text
+        assert client.get('/api/jobs', headers=HEADERS).json() == []
+
+
+def test_malformed_job_json_and_multiple_fields_are_safe(tmp_path):
+    with running(tmp_path) as (client, app, settings):
+        malformed = client.post('/api/jobs', headers={**HEADERS,'Content-Type':'application/json'}, content='{"secret-password":')
+        assert malformed.status_code == 422
+        assert 'بيانات الطلب غير صالحة' in malformed.json()['detail']
+        assert 'secret-password' not in malformed.text
+        response = client.post('/api/jobs', headers=HEADERS, json={'action':'like','url':'private-secret','quantity':0,'account_ids':[]})
+        assert response.status_code == 422
+        assert 'أدخل رابط المنشور' in response.json()['detail']
+        assert 'اكتب عددًا صحيحًا' in response.json()['detail']
+        assert 'اختر من 1 إلى 100' in response.json()['detail']
+        assert 'private-secret' not in response.text
+
+
 def test_jobs_validation_cancel_and_delete(tmp_path):
     with running(tmp_path) as (client, app, settings):
         account_id = add_account(client)
