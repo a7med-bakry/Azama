@@ -3,6 +3,7 @@ import json
 import base64
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs
 
 import pytest
 import requests
@@ -74,8 +75,21 @@ def test_valid_password_keys_work_with_upstream_encryption(monkeypatch):
     response.status_code = 200
     response.headers['ig-set-password-encryption-key-id'] = '1'
     response.headers['ig-set-password-encryption-pub-key'] = base64.b64encode(RSA.generate(2048).public_key().export_key()).decode()
-    monkeypatch.setattr(client.public, 'get', lambda *args, **kwargs: response)
+    calls = []
+    def post_key_request(url, **kwargs):
+        assert url == 'https://i.instagram.com/api/v1/qe/sync/'
+        assert kwargs['timeout'] == 20
+        assert kwargs['headers']['Content-Type'].startswith('application/x-www-form-urlencoded')
+        assert 'User-Agent' in kwargs['headers']
+        signed = parse_qs(kwargs['data'])['signed_body'][0]
+        payload = json.loads(signed.split('.', 1)[1])
+        assert payload == {'id': client.uuid, 'server_config_retrieval': '1'}
+        calls.append(url)
+        return response
+    monkeypatch.setattr(client.private, 'post', post_key_request)
+    monkeypatch.setattr(client.public, 'get', lambda *args, **kwargs: pytest.fail('Obsolete GET key request'))
     encrypted = client.password_encrypt('synthetic-test-password')
     assert encrypted.startswith('#PWD_INSTAGRAM:4:')
     assert len(base64.b64decode(encrypted.split(':', 3)[3])) > 256
     assert 'synthetic-test-password' not in encrypted
+    assert len(calls) == 1

@@ -41,6 +41,8 @@ def login_failure(error, stage):
             return 'rate_limited', 'إنستجرام قيّد المحاولة مؤقتًا. أوقف تكرار المحاولات وراجع الحساب في التطبيق.'
         if status == 403:
             return 'access_denied', 'إنستجرام رفض طلب الاتصال من السيرفر.'
+        if status == 405:
+            return 'instagram_response', 'إنستجرام رفض طريقة الطلب؛ يلزم مراجعة توافق كود تسجيل الدخول.'
         if status is not None and status >= 500:
             return 'provider_unavailable', 'طلب السيرفر رجع بخطأ من خدمة إنستجرام. حاول لاحقًا؛ الرسالة لا تعني أن كلمة المرور غير صحيحة.'
     if stage in ('instagram_login', 'two_factor') and isinstance(error, (KeyError, instagram_errors.ClientJSONDecodeError)):
