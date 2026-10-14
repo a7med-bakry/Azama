@@ -1,4 +1,5 @@
 import json
+import base64
 import time
 import threading
 from types import SimpleNamespace
@@ -233,8 +234,71 @@ def test_real_client_password_key_failure_has_safe_http_diagnostic(tmp_path, mon
         failed = wait_login(client, attempt['id'], ['failed'])
         assert failed['failure_code'] == code
         assert 'http_status=' + str(status) in caplog.text
+        assert 'request=password_key authenticated=False' in caplog.text
         for private in ('secret-password', '123456', 'synthetic-private-provider-response', 'private-url'):
             assert private not in json.dumps(failed) + caplog.text
+
+
+@pytest.mark.parametrize('blocked, request_label, authenticated', [
+    ('launcher/sync/', 'device_setup', False),
+    ('accounts/login/', 'account_login', False),
+    ('feed/reels_tray/', 'post_login_feed', True),
+    (None, None, True),
+])
+def test_real_login_throttling_identifies_request_and_authentication(tmp_path, monkeypatch, caplog, blocked, request_label, authenticated):
+    instagram = make_client()
+    instagram.request_timeout = 0
+    sent = []
+    encrypted = []
+    def encrypt(password):
+        encrypted.append(True)
+        return 'synthetic-encrypted-password'
+    monkeypatch.setattr(instagram, 'password_encrypt', encrypt)
+    def post(url, **kwargs):
+        endpoint = url.split('/api/v1/', 1)[1]
+        sent.append(endpoint)
+        response = requests.Response()
+        response.status_code = 429 if endpoint == blocked else 200
+        response.request = requests.Request('POST', url).prepare()
+        response.url = url
+        response._content = json.dumps({'status': 'fail', 'message': 'Please wait a few minutes synthetic-private-provider-response'} if endpoint == blocked else {'status': 'ok'}).encode()
+        if endpoint == 'accounts/login/' and response.status_code == 200:
+            auth = {'ds_user_id':'987654321012345', 'sessionid':'synthetic-private-session'}
+            response.headers['ig-set-authorization'] = 'Bearer IGT:2:' + base64.b64encode(json.dumps(auth).encode()).decode()
+        return response
+    monkeypatch.setattr(instagram.private, 'post', post)
+    with running(tmp_path, factory=lambda: instagram) as (client, app, settings):
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        if blocked is None:
+            wait_login(client, attempt['id'], ['ready'])
+            assert sent == ['launcher/sync/', 'accounts/login/', 'feed/reels_tray/', 'feed/timeline/']
+            assert len(client.get('/api/accounts', headers=HEADERS).json()) == 1
+            assert 'Instagram login failed' not in caplog.text
+            return
+        failed = wait_login(client, attempt['id'], ['failed'])
+        assert failed['failure_code'] == 'rate_limited'
+        assert f'request={request_label} authenticated={authenticated}' in caplog.text
+        assert 'http_status=429' in caplog.text
+        assert sent[-1] == blocked
+        assert len(sent) == {'device_setup':1, 'account_login':2, 'post_login_feed':3}[request_label]
+        if request_label == 'device_setup':
+            assert not encrypted  # A throttled setup must stop before password encryption/login.
+        assert client.get('/api/accounts', headers=HEADERS).json() == []
+        for secret in ('secret-password', '987654321012345', 'synthetic-private-provider-response', 'synthetic-private-session'):
+            assert secret not in caplog.text + json.dumps(failed)
+
+
+def test_login_diagnostics_reject_unrecognized_request_labels(tmp_path, caplog):
+    class Failing(FakeClient):
+        login_request = 'secret-password synthetic-private-url'
+        def login(self, *args, **kwargs):
+            raise RuntimeError('private-provider-response')
+    with running(tmp_path, factory=Failing) as (client, app, settings):
+        attempt = client.post('/api/logins', headers=HEADERS, json={'username':'ordinary','password':'secret-password'}).json()
+        wait_login(client, attempt['id'], ['failed'])
+        assert 'request=unknown authenticated=False' in caplog.text
+        assert 'secret-password' not in caplog.text
+        assert 'synthetic-private-url' not in caplog.text
 
 
 def test_unreadable_saved_session_identifies_encryption_key_failure(tmp_path, caplog):

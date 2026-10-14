@@ -1,6 +1,6 @@
 import logging
 from instagrapi import Client
-from instagrapi.exceptions import TwoFactorRequired, ClientJSONDecodeError
+from instagrapi.exceptions import TwoFactorRequired, ClientJSONDecodeError, PleaseWaitFewMinutes, ClientThrottledError
 from instagrapi.utils import dumps, generate_signature
 
 
@@ -8,8 +8,35 @@ class VerificationRequired(RuntimeError):
     """Verification that must be completed in the official Instagram app."""
 
 
+class PreLoginRateLimit(RuntimeError):
+    """Stop login when setup is throttled; upstream otherwise ignores this signal."""
+
+    def __init__(self, response=None):
+        super().__init__('Instagram throttled device setup')
+        self.response = response
+
+
 class InstagramClient(Client):
     """Keep error responses available to the client, including after session restore."""
+
+    login_request = 'not_started'
+
+    def private_request(self, endpoint, *args, **kwargs):
+        self.login_request = {
+            'launcher/sync/': 'device_setup',
+            'qe/sync/': 'device_setup',
+            'accounts/login/': 'account_login',
+            'accounts/two_factor_login/': 'two_factor',
+            'feed/reels_tray/': 'post_login_feed',
+            'feed/timeline/': 'post_login_feed',
+        }.get(endpoint, 'other')
+        return super().private_request(endpoint, *args, **kwargs)
+
+    def pre_login_flow(self):
+        try:
+            return super().pre_login_flow()
+        except (PleaseWaitFewMinutes, ClientThrottledError) as error:
+            raise PreLoginRateLimit(response=getattr(error, 'response', None)) from None
 
     def _build_private_session_retry_strategy(self):
         return super()._build_private_session_retry_strategy().new(total=0, raise_on_status=False)
@@ -18,6 +45,7 @@ class InstagramClient(Client):
         return super()._build_public_session_retry_strategy().new(total=0, raise_on_status=False)
 
     def password_publickeys(self):
+        self.login_request = 'password_key'
         # Match sync_device_features: qe/sync expects a signed private POST, not GET.
         headers = dict(self.base_headers)
         headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
